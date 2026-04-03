@@ -1,0 +1,5 @@
+{
+  "name": "CCTV Timeline Viewer",
+  "description": "A modern MotionEye-inspired CCTV recording viewer with an interactive 24-hour timeline.",
+  "requestFramePermissions": []
+}

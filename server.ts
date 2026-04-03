@@ -11,12 +11,27 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // Static serving for recordings
-  const recordingsPath = path.join(process.cwd(), 'recordings');
-  if (!fs.existsSync(recordingsPath)) {
-    fs.mkdirSync(recordingsPath, { recursive: true });
-  }
-  app.use('/recordings', express.static(recordingsPath));
+  app.use(express.json());
+
+  // Dynamic CCTV path
+  let cctvPath = path.join(process.cwd(), 'recordings');
+
+  // Static serving for recordings - we'll re-mount this when path changes
+  // For simplicity in this demo, we'll use a middleware that resolves the path dynamically
+  app.use('/recordings', (req, res, next) => {
+    express.static(cctvPath)(req, res, next);
+  });
+
+  // API Endpoint: POST /api/set-path
+  app.post('/api/set-path', (req, res) => {
+    const { path: newPath } = req.body;
+    if (newPath) {
+      cctvPath = newPath;
+      console.log(`CCTV Path updated to: ${cctvPath}`);
+      return res.json({ status: 'ok', path: cctvPath });
+    }
+    res.status(400).json({ error: 'Path is required' });
+  });
 
   // API Endpoint: GET /api/files?date=YYYY-MM-DD
   app.get('/api/files', (req, res) => {
@@ -26,7 +41,7 @@ async function startServer() {
       return res.status(400).json({ error: 'Date parameter is required (YYYY-MM-DD)' });
     }
 
-    const folderPath = path.join(recordingsPath, camera as string, date);
+    const folderPath = path.join(cctvPath, camera as string, date);
     
     if (!fs.existsSync(folderPath)) {
       return res.json([]); // Return empty list if folder doesn't exist

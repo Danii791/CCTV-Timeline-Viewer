@@ -5,11 +5,10 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { RecordingFile, RecordingType } from './types';
-import { generateDummyRecordings } from './utils/data';
 import { Viewer } from './components/Viewer';
 import { Timeline } from './components/Timeline';
 import { Controls } from './components/Controls';
-import { Camera, Shield, Settings, Bell, User } from 'lucide-react';
+import { Camera, FolderOpen } from 'lucide-react';
 
 export default function App() {
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -18,6 +17,7 @@ export default function App() {
   const [recordings, setRecordings] = useState<RecordingFile[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cctvPath, setCctvPath] = useState<string>('/mnt/cctv');
 
   // Fetch recordings from the backend API
   useEffect(() => {
@@ -51,12 +51,24 @@ export default function App() {
     fetchRecordings();
   }, [selectedDate, selectedType]);
 
+  const handlePathChange = async (newPath: string) => {
+    setCctvPath(newPath);
+    try {
+      await fetch('/api/set-path', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: newPath }),
+      });
+      // Optionally re-fetch recordings if needed, but usually user will change date or type anyway
+    } catch (err) {
+      console.error('Error setting path:', err);
+    }
+  };
+
   // Find the closest recording for the current time
   const currentRecording = useMemo(() => {
     if (recordings.length === 0) return null;
     
-    // Find the recording that is closest to currentTime but not after it
-    // Or just the closest one if we want "jump to nearest"
     let closest = recordings[0];
     let minDiff = Math.abs(currentTime - recordings[0].seconds);
 
@@ -68,47 +80,32 @@ export default function App() {
       }
     }
 
-    // Only return if it's reasonably close (e.g., within 30 mins)
-    // or just return the closest one for better UX
     return minDiff < 1800 ? closest : null;
   }, [recordings, currentTime]);
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-blue-500/30">
-      {/* Sidebar Navigation (Mock) */}
-      <aside className="fixed left-0 top-0 h-full w-20 border-r border-zinc-900 bg-zinc-950/50 backdrop-blur-xl flex flex-col items-center py-8 gap-10 z-50">
-        <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-600/20">
-          <Shield className="text-white" size={24} />
-        </div>
-        
-        <nav className="flex flex-col gap-6">
-          <button className="p-3 text-blue-400 bg-blue-400/10 rounded-xl border border-blue-400/20 transition-all">
-            <Camera size={24} />
-          </button>
-          <button className="p-3 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 rounded-xl transition-all">
-            <Bell size={24} />
-          </button>
-          <button className="p-3 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 rounded-xl transition-all">
-            <Settings size={24} />
-          </button>
-        </nav>
-
-        <div className="mt-auto p-3 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 rounded-xl transition-all">
-          <User size={24} />
-        </div>
-      </aside>
-
       {/* Main Content */}
-      <main className="pl-20 min-h-screen">
-        <header className="px-8 py-6 border-b border-zinc-900 flex items-center justify-between sticky top-0 bg-zinc-950/80 backdrop-blur-md z-40">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">CCTV Timeline Viewer</h1>
-            <p className="text-zinc-500 text-sm font-medium">Camera: <span className="text-zinc-300">Front Entrance (Cam 01)</span></p>
+      <main className="min-h-screen">
+        <header className="px-8 py-4 border-b border-zinc-900 flex flex-col md:flex-row items-center justify-between sticky top-0 bg-zinc-950/80 backdrop-blur-md z-40 gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/20">
+              <Camera className="text-white" size={20} />
+            </div>
+            <h1 className="text-xl font-bold tracking-tight">CCTV Viewer</h1>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
-              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-              <span className="text-xs font-bold text-emerald-500 uppercase tracking-wider">System Online</span>
+
+          <div className="flex flex-1 max-w-md items-center gap-3 bg-zinc-900/50 px-4 py-2 rounded-xl border border-zinc-800 focus-within:border-blue-500/50 transition-all">
+            <FolderOpen size={18} className="text-zinc-500" />
+            <div className="flex flex-col flex-1">
+              <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">CCTV Path</label>
+              <input 
+                type="text" 
+                placeholder="/mnt/cctv"
+                value={cctvPath}
+                onChange={(e) => handlePathChange(e.target.value)}
+                className="bg-transparent border-none p-0 text-sm focus:ring-0 text-zinc-200 placeholder:text-zinc-700 w-full"
+              />
             </div>
           </div>
         </header>

@@ -28,57 +28,57 @@ export const Controls: React.FC<ControlsProps> = ({
   };
 
   return (
-    <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 rounded-2xl p-4 shadow-xl">
+    <div className="flex items-center gap-2">
       {/* Date Selector */}
-      <div className="flex items-center gap-4 bg-zinc-800/50 p-1.5 rounded-xl border border-zinc-700/50">
+      <div className="flex items-center gap-1 bg-zinc-900/50 p-1 rounded-lg border border-zinc-800">
         <button 
           onClick={handlePrevDay}
-          className="p-2 hover:bg-zinc-700 rounded-lg transition-colors text-zinc-400 hover:text-white"
+          className="p-1.5 hover:bg-zinc-800 rounded-md transition-colors text-zinc-400 hover:text-white"
         >
-          <ChevronLeft size={20} />
+          <ChevronLeft size={16} />
         </button>
         
-        <div className="flex items-center gap-3 px-4">
-          <Calendar size={18} className="text-blue-400" />
+        <div className="flex items-center gap-2 px-2">
+          <Calendar size={14} className="text-blue-400" />
           <input 
             type="date" 
             value={selectedDate}
             onChange={(e) => onDateChange(e.target.value)}
-            className="bg-transparent border-none text-white font-medium focus:ring-0 cursor-pointer text-sm"
+            className="bg-transparent border-none text-white font-medium focus:ring-0 cursor-pointer text-xs p-0"
           />
         </div>
 
         <button 
           onClick={handleNextDay}
-          className="p-2 hover:bg-zinc-700 rounded-lg transition-colors text-zinc-400 hover:text-white"
+          className="p-1.5 hover:bg-zinc-800 rounded-md transition-colors text-zinc-400 hover:text-white"
         >
-          <ChevronRight size={20} />
+          <ChevronRight size={16} />
         </button>
       </div>
 
       {/* Mode Selector */}
-      <div className="flex items-center gap-2 bg-zinc-800/50 p-1.5 rounded-xl border border-zinc-700/50">
+      <div className="flex items-center gap-1 bg-zinc-900/50 p-1 rounded-lg border border-zinc-800">
         <button
           onClick={() => onTypeChange('VIDEO')}
-          className={`flex items-center gap-2 px-6 py-2.5 rounded-lg transition-all duration-300 font-medium text-sm ${
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-all duration-300 font-medium text-xs ${
             selectedType === 'VIDEO' 
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' 
-              : 'text-zinc-400 hover:text-white hover:bg-zinc-700'
+              ? 'bg-blue-600 text-white' 
+              : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
           }`}
         >
-          <Video size={18} />
-          <span>VIDEO</span>
+          <Video size={14} />
+          <span className="hidden sm:inline">VIDEO</span>
         </button>
         <button
           onClick={() => onTypeChange('IMAGE')}
-          className={`flex items-center gap-2 px-6 py-2.5 rounded-lg transition-all duration-300 font-medium text-sm ${
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-all duration-300 font-medium text-xs ${
             selectedType === 'IMAGE' 
-              ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' 
-              : 'text-zinc-400 hover:text-white hover:bg-zinc-700'
+              ? 'bg-emerald-600 text-white' 
+              : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
           }`}
         >
-          <ImageIcon size={18} />
-          <span>IMAGE</span>
+          <ImageIcon size={14} />
+          <span className="hidden sm:inline">IMAGE</span>
         </button>
       </div>
     </div>

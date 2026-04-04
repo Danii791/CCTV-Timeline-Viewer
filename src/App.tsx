@@ -8,7 +8,7 @@ import { RecordingFile, RecordingType } from './types';
 import { Viewer } from './components/Viewer';
 import { Timeline } from './components/Timeline';
 import { Controls } from './components/Controls';
-import { Camera, FolderOpen } from 'lucide-react';
+import { Camera, FolderOpen, RefreshCw } from 'lucide-react';
 
 export default function App() {
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -18,6 +18,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cctvPath, setCctvPath] = useState<string>('/mnt/cctv');
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Fetch recordings from the backend API
   useEffect(() => {
@@ -49,7 +50,11 @@ export default function App() {
     };
 
     fetchRecordings();
-  }, [selectedDate, selectedType]);
+  }, [selectedDate, selectedType, refreshKey]);
+
+  const handleRefresh = () => {
+    setRefreshKey(prev => prev + 1);
+  };
 
   const handlePathChange = async (newPath: string) => {
     setCctvPath(newPath);
@@ -59,7 +64,6 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: newPath }),
       });
-      // Optionally re-fetch recordings if needed, but usually user will change date or type anyway
     } catch (err) {
       console.error('Error setting path:', err);
     }
@@ -83,90 +87,110 @@ export default function App() {
     return minDiff < 1800 ? closest : null;
   }, [recordings, currentTime]);
 
+  // Navigation handlers
+  const handleNext = () => {
+    if (recordings.length === 0) return;
+    const nextRec = recordings.find(rec => rec.seconds > currentTime);
+    if (nextRec) {
+      setCurrentTime(nextRec.seconds);
+    }
+  };
+
+  const handlePrev = () => {
+    if (recordings.length === 0) return;
+    const prevRecs = recordings.filter(rec => rec.seconds < currentTime);
+    if (prevRecs.length > 0) {
+      const prevRec = prevRecs[prevRecs.length - 1];
+      setCurrentTime(prevRec.seconds);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-blue-500/30">
+    <div className="h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-blue-500/30 flex flex-col overflow-hidden">
+      {/* Header */}
+      <header className="px-4 py-2 border-b border-zinc-900 flex flex-col lg:flex-row items-center justify-between bg-zinc-950/80 backdrop-blur-md z-40 gap-3 shrink-0">
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-600/20">
+            <Camera className="text-white" size={16} />
+          </div>
+          <h1 className="text-lg font-bold tracking-tight">CCTV Viewer</h1>
+        </div>
+
+        <div className="flex flex-1 max-w-sm items-center gap-2 bg-zinc-900/50 px-3 py-1 rounded-lg border border-zinc-800 focus-within:border-blue-500/50 transition-all group">
+          <FolderOpen size={16} className="text-zinc-500" />
+          <div className="flex flex-col flex-1">
+            <label className="text-[8px] uppercase tracking-wider text-zinc-500 font-bold leading-none">CCTV Path</label>
+            <input 
+              type="text" 
+              placeholder="/mnt/cctv"
+              value={cctvPath}
+              onChange={(e) => handlePathChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleRefresh();
+                }
+              }}
+              className="bg-transparent border-none p-0 text-xs focus:ring-0 text-zinc-200 placeholder:text-zinc-700 w-full"
+            />
+          </div>
+          <button 
+            onClick={handleRefresh}
+            disabled={isLoading}
+            className={`p-1.5 rounded-md hover:bg-zinc-800 text-zinc-500 hover:text-blue-400 transition-all ${isLoading ? 'animate-spin' : ''}`}
+            title="Rescan Path"
+          >
+            <RefreshCw size={14} />
+          </button>
+        </div>
+
+        <Controls 
+          selectedDate={selectedDate}
+          onDateChange={setSelectedDate}
+          selectedType={selectedType}
+          onTypeChange={setSelectedType}
+        />
+      </header>
+
       {/* Main Content */}
-      <main className="min-h-screen">
-        <header className="px-8 py-4 border-b border-zinc-900 flex flex-col md:flex-row items-center justify-between sticky top-0 bg-zinc-950/80 backdrop-blur-md z-40 gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/20">
-              <Camera className="text-white" size={20} />
+      <main className="flex-1 flex flex-row min-h-0 p-2 gap-2">
+        {/* Viewer Section */}
+        <div className="flex-1 min-h-0 flex items-center justify-center bg-zinc-900/20 rounded-xl border border-zinc-900/50 overflow-hidden relative">
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center text-zinc-500">
+              <div className="w-10 h-10 border-3 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-3"></div>
+              <p className="text-sm font-medium">Scanning recordings...</p>
             </div>
-            <h1 className="text-xl font-bold tracking-tight">CCTV Viewer</h1>
-          </div>
-
-          <div className="flex flex-1 max-w-md items-center gap-3 bg-zinc-900/50 px-4 py-2 rounded-xl border border-zinc-800 focus-within:border-blue-500/50 transition-all">
-            <FolderOpen size={18} className="text-zinc-500" />
-            <div className="flex flex-col flex-1">
-              <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">CCTV Path</label>
-              <input 
-                type="text" 
-                placeholder="/mnt/cctv"
-                value={cctvPath}
-                onChange={(e) => handlePathChange(e.target.value)}
-                className="bg-transparent border-none p-0 text-sm focus:ring-0 text-zinc-200 placeholder:text-zinc-700 w-full"
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center text-red-400 p-6 text-center">
+              <p className="text-sm font-medium">{error}</p>
+              <button 
+                onClick={() => window.location.reload()}
+                className="mt-3 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-xs text-zinc-300"
+              >
+                Try Again
+              </button>
+            </div>
+          ) : (
+            <div className="w-full h-full max-h-[85vh] flex items-center justify-center p-2">
+              <Viewer 
+                currentRecording={currentRecording}
+                currentTime={currentTime}
+                onNext={handleNext}
+                onPrev={handlePrev}
+                hasNext={recordings.some(rec => rec.seconds > currentTime)}
+                hasPrev={recordings.some(rec => rec.seconds < currentTime)}
               />
             </div>
-          </div>
-        </header>
+          )}
+        </div>
 
-        <div className="max-w-6xl mx-auto px-8 py-8 flex flex-col gap-8">
-          {/* Top Section: Controls and Viewer */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            <div className="lg:col-span-12 flex flex-col gap-8">
-              <Controls 
-                selectedDate={selectedDate}
-                onDateChange={setSelectedDate}
-                selectedType={selectedType}
-                onTypeChange={setSelectedType}
-              />
-              
-              {isLoading ? (
-                <div className="w-full aspect-video bg-zinc-900 rounded-xl flex flex-col items-center justify-center text-zinc-500 border border-zinc-800">
-                  <div className="w-12 h-12 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-4"></div>
-                  <p className="text-lg font-medium">Scanning recordings...</p>
-                </div>
-              ) : error ? (
-                <div className="w-full aspect-video bg-zinc-900 rounded-xl flex flex-col items-center justify-center text-red-400 border border-red-900/30">
-                  <p className="text-lg font-medium">{error}</p>
-                  <button 
-                    onClick={() => window.location.reload()}
-                    className="mt-4 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm text-zinc-300"
-                  >
-                    Try Again
-                  </button>
-                </div>
-              ) : (
-                <Viewer 
-                  currentRecording={currentRecording}
-                  currentTime={currentTime}
-                />
-              )}
-            </div>
-          </div>
-
-          {/* Bottom Section: Timeline */}
+        {/* Timeline Section */}
+        <div className="w-72 shrink-0 h-full">
           <Timeline 
             recordings={recordings}
             currentTime={currentTime}
             onTimeChange={setCurrentTime}
           />
-          
-          {/* Footer / Stats */}
-          <footer className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-            <div className="bg-zinc-900/40 p-6 rounded-2xl border border-zinc-800/50">
-              <h4 className="text-zinc-500 text-xs font-bold uppercase tracking-widest mb-2">Total Recordings</h4>
-              <p className="text-3xl font-mono font-bold text-white">{recordings.length}</p>
-            </div>
-            <div className="bg-zinc-900/40 p-6 rounded-2xl border border-zinc-800/50">
-              <h4 className="text-zinc-500 text-xs font-bold uppercase tracking-widest mb-2">Storage Used</h4>
-              <p className="text-3xl font-mono font-bold text-white">12.4 <span className="text-lg text-zinc-600">GB</span></p>
-            </div>
-            <div className="bg-zinc-900/40 p-6 rounded-2xl border border-zinc-800/50">
-              <h4 className="text-zinc-500 text-xs font-bold uppercase tracking-widest mb-2">Uptime</h4>
-              <p className="text-3xl font-mono font-bold text-white">99.9 <span className="text-lg text-zinc-600">%</span></p>
-            </div>
-          </footer>
         </div>
       </main>
     </div>

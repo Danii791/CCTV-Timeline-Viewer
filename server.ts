@@ -35,13 +35,21 @@ async function startServer() {
 
   // API Endpoint: GET /api/files?date=YYYY-MM-DD
   app.get('/api/files', (req, res) => {
-    const { date, camera = 'cam1' } = req.query;
+    const { date } = req.query;
     
-    if (!date || typeof date !== 'string') {
-      return res.status(400).json({ error: 'Date parameter is required (YYYY-MM-DD)' });
-    }
+    // Determine the folder to scan
+    // 1. Try cctvPath/date
+    // 2. Fallback to cctvPath directly
+    let folderPath = cctvPath;
+    let urlPrefix = '/recordings';
 
-    const folderPath = path.join(cctvPath, camera as string, date);
+    if (date && typeof date === 'string') {
+      const datePath = path.join(cctvPath, date);
+      if (fs.existsSync(datePath) && fs.statSync(datePath).isDirectory()) {
+        folderPath = datePath;
+        urlPrefix = `/recordings/${date}`;
+      }
+    }
     
     if (!fs.existsSync(folderPath)) {
       return res.json([]); // Return empty list if folder doesn't exist
@@ -66,7 +74,7 @@ async function startServer() {
             name: file,
             time: time,
             seconds: seconds,
-            url: `/recordings/${camera}/${date}/${file}`,
+            url: `${urlPrefix}/${file}`,
             type: type
           };
         })

@@ -39,3 +39,26 @@ export function formatSecondsToTime(seconds: number): string {
   const s = seconds % 60;
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
+
+export function formatIndonesianDate(dateStr: string): string {
+  try {
+    if (!dateStr) return "";
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    if (isNaN(date.getTime())) return dateStr;
+    return date.toLocaleDateString('id-ID', { 
+      day: '2-digit', 
+      month: 'long', 
+      year: 'numeric' 
+    });
+  } catch (e) {
+    return dateStr;
+  }
+}
+
+export function formatDateLocal(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}

@@ -8,17 +8,38 @@ import { RecordingFile, RecordingType } from './types';
 import { Viewer } from './components/Viewer';
 import { Timeline } from './components/Timeline';
 import { Controls } from './components/Controls';
-import { Camera, FolderOpen, RefreshCw } from 'lucide-react';
+import { Cctv, FolderOpen, RefreshCw } from 'lucide-react';
+import { DownloadModal } from './components/DownloadModal';
+import { AnimatePresence } from 'motion/react';
+import { formatDateLocal } from './utils/data';
 
 export default function App() {
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState<string>(formatDateLocal(new Date()));
   const [selectedType, setSelectedType] = useState<RecordingType>('VIDEO');
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [recordings, setRecordings] = useState<RecordingFile[]>([]);
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cctvPath, setCctvPath] = useState<string>('/mnt/cctv');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
+
+  // Fetch available dates on refresh or load
+  useEffect(() => {
+    const fetchDates = async () => {
+      try {
+        const response = await fetch(`/api/files?cctvPath=${encodeURIComponent(cctvPath)}`);
+        if (response.ok) {
+          const data = await response.json();
+          setAvailableDates(data);
+        }
+      } catch (err) {
+        console.error('Error fetching available dates:', err);
+      }
+    };
+    fetchDates();
+  }, [refreshKey, cctvPath]);
 
   // Fetch recordings from the backend API
   useEffect(() => {
@@ -108,15 +129,15 @@ export default function App() {
   return (
     <div className="h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-blue-500/30 flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="px-4 py-2 border-b border-zinc-900 flex flex-col lg:flex-row items-center justify-between bg-zinc-950/80 backdrop-blur-md z-40 gap-3 shrink-0">
+      <header className="px-3 py-2 border-b border-zinc-900 flex flex-col lg:flex-row items-center justify-between bg-zinc-950 z-40 gap-2 shrink-0">
         <div className="flex items-center gap-3 shrink-0">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-600/20">
-            <Camera className="text-white" size={16} />
+          <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
+            <Cctv className="text-white" size={16} />
           </div>
           <h1 className="text-lg font-bold tracking-tight">CCTV Viewer</h1>
         </div>
 
-        <div className="flex flex-1 max-w-sm items-center gap-2 bg-zinc-900/50 px-3 py-1 rounded-lg border border-zinc-800 focus-within:border-blue-500/50 transition-all group">
+        <div className="flex flex-1 max-w-sm items-center gap-2 bg-zinc-900 px-3 py-1 rounded border border-zinc-800 transition-colors group">
           <FolderOpen size={16} className="text-zinc-500" />
           <div className="flex flex-col flex-1">
             <label className="text-[8px] uppercase tracking-wider text-zinc-500 font-bold leading-none">CCTV Path</label>
@@ -144,15 +165,17 @@ export default function App() {
         </div>
 
         <Controls 
+          availableDates={availableDates}
           selectedDate={selectedDate}
           onDateChange={setSelectedDate}
           selectedType={selectedType}
           onTypeChange={setSelectedType}
+          onDownloadClick={() => setIsDownloadModalOpen(true)}
         />
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-row min-h-0 p-2 gap-2">
+      <main className="flex-1 flex flex-row min-h-0 p-1.5 gap-1.5">
         {/* Viewer Section */}
         <div className="flex-1 min-h-0 flex items-center justify-center bg-zinc-900/20 rounded-xl border border-zinc-900/50 overflow-hidden relative">
           {isLoading ? (
@@ -171,7 +194,7 @@ export default function App() {
               </button>
             </div>
           ) : (
-            <div className="w-full h-full max-h-[85vh] flex items-center justify-center p-2">
+            <div className="w-full h-full max-h-[85vh] flex items-center justify-center p-1">
               <Viewer 
                 currentRecording={currentRecording}
                 currentTime={currentTime}
@@ -193,6 +216,17 @@ export default function App() {
           />
         </div>
       </main>
+
+      {/* Download Modal */}
+      <AnimatePresence>
+        {isDownloadModalOpen && (
+          <DownloadModal 
+            isOpen={isDownloadModalOpen}
+            onClose={() => setIsDownloadModalOpen(false)}
+            initialDate={selectedDate}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

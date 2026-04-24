@@ -1,7 +1,8 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { RecordingFile } from '../types';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { formatSecondsToTime } from '../utils/data';
+import { ZoomIn, ZoomOut, Clock, Video, Image as ImageIcon, Map as MapIcon } from 'lucide-react';
 
 interface TimelineProps {
   recordings: RecordingFile[];
@@ -16,6 +17,17 @@ export const Timeline: React.FC<TimelineProps> = ({ recordings, currentTime, onT
   const [zoom, setZoom] = useState(12); // pixels per minute
 
   const totalHeight = 1440 * zoom;
+
+  // Calculate density for the mini-map
+  const densityMap = useMemo(() => {
+    const slots = new Array(144).fill(0); // 10-minute slots
+    recordings.forEach(rec => {
+      const slotIdx = Math.floor(rec.seconds / 600);
+      if (slotIdx < 144) slots[slotIdx]++;
+    });
+    const max = Math.max(...slots, 1);
+    return slots.map(s => s / max);
+  }, [recordings]);
 
   const handleTimelineInteraction = (e: React.MouseEvent | React.TouchEvent) => {
     if (!timelineRef.current) return;
@@ -52,48 +64,90 @@ export const Timeline: React.FC<TimelineProps> = ({ recordings, currentTime, onT
   }, [currentTime, isDragging, zoom]);
 
   return (
-    <div className="h-full bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 rounded-xl p-2 shadow-xl flex flex-col gap-2">
+    <div className="h-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 flex flex-col gap-3 overflow-hidden relative group/timeline select-none">
       {/* Header Section */}
-      <div className="flex flex-col gap-2 p-1 border-b border-zinc-800/50">
-        <div className="flex items-center justify-between">
-          <h3 className="text-zinc-500 font-bold text-[9px] uppercase tracking-tighter">Timeline (24h)</h3>
-          <div className="flex items-center gap-1 bg-zinc-800/50 rounded-md p-0.5 border border-zinc-700/30">
+      <div className="flex flex-col gap-3 shrink-0">
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <div className="w-1.5 h-1.5 bg-blue-500 rounded-full relative"></div>
+            </div>
+            <h3 className="text-zinc-500 font-bold text-[10px] uppercase tracking-[0.2em]">Surveillance</h3>
+          </div>
+          <div className="flex items-center gap-1 bg-zinc-900 rounded-lg p-0.5 border border-zinc-800">
             <button 
               onClick={() => handleZoom(5)}
-              className="w-6 h-6 flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300 hover:text-white transition-all"
+              className="w-7 h-7 flex items-center justify-center hover:bg-white/5 rounded-lg text-zinc-400 hover:text-white transition-all active:scale-90"
               title="Zoom In"
             >
-              <span className="text-sm font-bold">+</span>
+              <ZoomIn size={14} />
             </button>
+            <div className="w-px h-3 bg-white/5 mx-0.5"></div>
             <button 
               onClick={() => handleZoom(-5)}
-              className="w-6 h-6 flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300 hover:text-white transition-all"
+              className="w-7 h-7 flex items-center justify-center hover:bg-white/5 rounded-lg text-zinc-400 hover:text-white transition-all active:scale-90"
               title="Zoom Out"
             >
-              <span className="text-sm font-bold">-</span>
+              <ZoomOut size={14} />
             </button>
           </div>
         </div>
 
-        <div className="bg-zinc-950/50 p-2 rounded-lg border border-zinc-800/50 flex flex-col items-center">
-          <span className="text-zinc-600 text-[8px] font-bold uppercase tracking-widest mb-0.5">Current Time</span>
-          <span className="text-blue-400 text-2xl font-mono font-bold tracking-tighter">
-            {formatSecondsToTime(currentTime)}
-          </span>
-          {hoverTime !== null && (
-            <span className="text-zinc-500 text-xs font-mono mt-0.5 opacity-60">
-              {formatSecondsToTime(hoverTime)}
+        {/* Compact Vertical Playback Info */}
+        <div className="flex items-center justify-center py-2 px-4 bg-zinc-900 rounded-lg border border-zinc-800 relative overflow-hidden">
+          <div className="flex flex-col items-center relative z-10">
+            <span className="text-zinc-500 text-[8px] font-bold uppercase tracking-[0.3em] mb-1 opacity-60">Playback</span>
+            <span className="text-white text-2xl font-mono tabular-nums">
+              {formatSecondsToTime(currentTime)}
             </span>
-          )}
+          </div>
         </div>
       </div>
 
-      {/* Timeline Area */}
-      <div className="flex-1 min-h-0 relative flex gap-2">
+      {/* Main Timeline Area with Mini-map */}
+      <div className="flex-1 min-h-0 relative flex gap-4">
+        {/* Mini-map Scrubber with 3-hour labels */}
+        <div className="w-12 h-full flex flex-col relative shrink-0 group/minimap select-none">
+          {/* 3-Hour Labels for Mini-map */}
+          <div className="absolute inset-y-0 left-0 w-8 flex flex-col justify-between py-1 pointer-events-none opacity-50 group-hover/minimap:opacity-100 transition-opacity duration-500">
+            {[0, 3, 6, 9, 12, 15, 18, 21, 24].map(h => (
+              <span key={h} className="text-[10px] text-zinc-400 font-mono font-black leading-none text-right pr-2">
+                {h.toString().padStart(2, '0')}
+              </span>
+            ))}
+          </div>
+
+          {/* The actual scrubber bar */}
+          <div className="ml-auto w-2.5 h-full bg-zinc-900 rounded-full border border-zinc-800 relative overflow-hidden cursor-pointer"
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const y = e.clientY - rect.top;
+              const ratio = y / rect.height;
+              onTimeChange(Math.floor(ratio * 86400));
+            }}
+          >
+            {densityMap.map((d, i) => (
+              <div 
+                key={i}
+                className="absolute left-0 w-full bg-blue-600"
+                style={{ 
+                  top: `${(i / 144) * 100}%`, 
+                  height: `${(1 / 144) * 100}%`,
+                  opacity: d > 0 ? Math.max(0.2, d * 0.8) : 0
+                }}
+              />
+            ))}
+            <div 
+              className="absolute left-0 w-full h-1 bg-blue-400 z-10 transition-all duration-300 rounded-full"
+              style={{ top: `${(currentTime / 86400) * 100}%` }}
+            />
+          </div>
+        </div>
+
         {/* Scrollable Timeline */}
         <div 
           ref={timelineRef}
-          className="flex-1 relative overflow-y-auto overflow-x-hidden cursor-crosshair select-none scrollbar-hide"
+          className="flex-1 relative overflow-y-auto overflow-x-hidden cursor-crosshair select-none scrollbar-hide rounded-xl bg-zinc-950 border border-zinc-900"
           onMouseDown={(e) => { setIsDragging(true); handleTimelineInteraction(e); }}
           onMouseUp={() => setIsDragging(false)}
           onMouseLeave={() => { setIsDragging(false); setHoverTime(null); }}
@@ -104,91 +158,105 @@ export const Timeline: React.FC<TimelineProps> = ({ recordings, currentTime, onT
             style={{ height: `${totalHeight}px` }}
           >
             {/* Hour Markers */}
-            {Array.from({ length: 25 }).map((_, i) => (
-              <div 
-                key={i} 
-                className="absolute left-0 w-full border-t border-zinc-800/50 flex items-start z-10"
-                style={{ top: `${i * 60 * zoom}px` }}
-              >
-                <span className="text-sm text-zinc-300 font-mono -mt-3 ml-1 font-bold bg-zinc-950/90 px-2 py-0.5 rounded border border-zinc-700/50 shadow-md">
-                  {i.toString().padStart(2, '0')}:00
-                </span>
-                <div className="flex-1 border-t border-zinc-800/30 ml-2 mt-0.5"></div>
-              </div>
-            ))}
+            {Array.from({ length: 25 }).map((_, i) => {
+              const isThreeHour = i % 3 === 0;
+              return (
+                <div 
+                  key={i} 
+                  className={`absolute left-0 w-full flex items-center z-10 group/hour ${isThreeHour ? 'opacity-100' : 'opacity-60'}`}
+                  style={{ top: `${i * 60 * zoom}px` }}
+                >
+                  <div className="w-16 shrink-0 flex justify-end pr-3">
+                    <span className={`text-[11px] font-mono tabular-nums ${isThreeHour ? 'text-zinc-300 font-bold' : 'text-zinc-500'}`}>
+                      {i.toString().padStart(2, '0')}:00
+                    </span>
+                  </div>
+                  <div className={`flex-1 border-t ${isThreeHour ? 'border-zinc-700' : 'border-zinc-800/40'}`}></div>
+                </div>
+              );
+            })}
 
             {/* 10-Minute Markers */}
             {zoom >= 15 && Array.from({ length: 24 * 6 }).map((_, i) => {
               if (i % 6 === 0) return null;
               return (
                 <div 
-                  key={i} 
-                  className="absolute left-0 w-full border-t border-zinc-800/20 flex items-center"
+                  key={`10m-${i}`} 
+                  className="absolute left-0 w-full flex items-center opacity-40 group/minute"
                   style={{ top: `${i * 10 * zoom}px` }}
                 >
-                  <span className="text-xs text-zinc-500 font-mono ml-16">
-                    {Math.floor(i / 6).toString().padStart(2, '0')}:{(i % 6 * 10).toString().padStart(2, '0')}
-                  </span>
+                  <div className="w-16 shrink-0 flex justify-end pr-3">
+                    <span className="text-[10px] text-zinc-600 font-mono tabular-nums">
+                      :{(i % 6 * 10).toString().padStart(2, '0')}
+                    </span>
+                  </div>
+                  <div className="flex-1 border-t border-zinc-800/40"></div>
                 </div>
               );
             })}
 
-            {/* 1-Minute Ticks */}
-            {zoom >= 40 && Array.from({ length: 1440 }).map((_, i) => {
-              if (i % 10 === 0) return null;
+            {/* 5-Minute Markers (High Zoom) */}
+            {zoom >= 35 && Array.from({ length: 24 * 12 }).map((_, i) => {
+              if (i % 2 === 0) return null; // Skip 10-minute markers
               return (
                 <div 
-                  key={i} 
-                  className="absolute left-0 w-4 border-t border-zinc-800/20"
-                  style={{ top: `${i * zoom}px` }}
-                ></div>
+                  key={`5m-${i}`} 
+                  className="absolute left-0 w-full flex items-center opacity-30 group/5minute"
+                  style={{ top: `${i * 5 * zoom}px` }}
+                >
+                  <div className="w-16 shrink-0 flex justify-end pr-3">
+                    <span className="text-[10px] text-zinc-700 font-mono tabular-nums">
+                      :{(i % 12 * 5).toString().padStart(2, '0')}
+                    </span>
+                  </div>
+                  <div className="flex-1 border-t border-zinc-800/20"></div>
+                </div>
               );
             })}
 
             {/* Recording Markers */}
             {recordings.map((rec, idx) => (
-              <motion.div
+              <div
                 key={idx}
-                initial={{ scaleX: 0 }}
-                animate={{ scaleX: 1 }}
-                className={`absolute right-2 h-1.5 rounded-sm ${rec.type === 'VIDEO' ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]'}`}
+                className={`absolute right-0 h-3 rounded-l-md group/marker cursor-pointer border-y border-l border-white/5 ${
+                  rec.type === 'VIDEO' 
+                    ? 'bg-blue-600' 
+                    : 'bg-emerald-600'
+                }`}
                 style={{ 
                   top: `${(rec.seconds / 60) * zoom}px`,
-                  width: '40%',
+                  width: '65%',
                   transform: 'translateY(-50%)'
                 }}
-                whileHover={{ scale: 1.2, width: '60%', zIndex: 10 }}
-              />
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTimeChange(rec.seconds);
+                }}
+              >
+              </div>
             ))}
 
             {/* Current Time Indicator */}
             <div 
-              className="absolute left-0 w-full h-0.5 bg-blue-400 z-20 shadow-[0_0_15px_rgba(96,165,250,0.8)]"
+              className="absolute left-0 w-full h-[1px] bg-blue-500 z-[100] pointer-events-none"
               style={{ top: `${(currentTime / 60) * zoom}px` }}
             >
-              <div className="absolute -left-0.5 -top-1 w-2.5 h-2.5 bg-blue-400 rounded-full border-2 border-zinc-900"></div>
+              <div className="absolute left-16 right-0 h-[1px] bg-blue-400"></div>
             </div>
-
-            {/* Hover Indicator */}
-            {hoverTime !== null && (
-              <div 
-                className="absolute left-0 w-full h-px bg-white/20 pointer-events-none"
-                style={{ top: `${(hoverTime / 60) * zoom}px` }}
-              ></div>
-            )}
           </div>
         </div>
       </div>
 
       {/* Legend Footer */}
-      <div className="p-2 border-t border-zinc-800/50 flex flex-col gap-1.5">
-        <div className="flex items-center gap-2 text-[8px] text-zinc-600 font-bold uppercase tracking-widest">
-          <div className="w-2 h-2 bg-blue-500 rounded-sm"></div>
-          <span>Video Recording</span>
+      <div className="p-2 bg-zinc-900 rounded-lg border border-zinc-800 flex items-center justify-around gap-3">
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 bg-blue-600 rounded-full"></div>
+          <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Video</span>
         </div>
-        <div className="flex items-center gap-2 text-[8px] text-zinc-600 font-bold uppercase tracking-widest">
-          <div className="w-2 h-2 bg-emerald-500 rounded-sm"></div>
-          <span>Image Snapshot</span>
+        <div className="w-px h-2 bg-zinc-800"></div>
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 bg-emerald-600 rounded-full"></div>
+          <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Image</span>
         </div>
       </div>
     </div>
